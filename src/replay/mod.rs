@@ -1074,15 +1074,24 @@ async fn run_replay_or_download(
                         let annex_b = annex_b_from_nals(&nals);
                         let is_mp4 = p.extension().map(|e| e == "mp4").unwrap_or(false);
                         if is_mp4 {
+                            // analyze-video-download
+                            // First ouput the AAC data in order to verify it is correct
+                            let aac_dump_path = p.with_extension("replay.aac.bin");
+                            if let Err(e) = tokio::fs::write(&aac_dump_path, &aac_data).await {
+                                log::warn!("Replay: could not write AAC dump: {}", e);
+                            } else {
+                                log::info!("Replay: AAC data saved to {}", aac_dump_path.display());
+                            }
+
                             if mux_to_mp4(&nals, &aac_data, fps, &timestamps_us, p, &recording_meta).await? {
-                                println!("Parsed BcMedia replay and muxed to {}", p.display());
+                                log::info!("Parsed BcMedia replay and muxed to {}", p.display());
                             } else {
                                 tokio::fs::write(p, &annex_b).await.context("Write H.264 fallback")?;
-                                println!("Wrote {} bytes (H.264 Annex B) to {} (mux failed)", annex_b.len(), p.display());
+                                log::info!("Wrote {} bytes (H.264 Annex B) to {} (mux failed)", annex_b.len(), p.display());
                             }
                         } else {
                             tokio::fs::write(p, &annex_b).await.context("Write H.264 replay")?;
-                            println!("Wrote {} bytes (H.264 Annex B) to {}", annex_b.len(), p.display());
+                            log::info!("Wrote {} bytes (H.264 Annex B) to {}", annex_b.len(), p.display());
                         }
                     } else {
                         let raw_path = if p.extension().map(|e| e == "mp4").unwrap_or(false) {
@@ -1092,7 +1101,7 @@ async fn run_replay_or_download(
                         };
                         tokio::fs::write(&raw_path, &raw_replay_buffer).await.context("Write raw replay")?;
                         if raw_path.as_path() != p.as_path() {
-                            println!(
+                            log::info!(
                                 "Replay stream is not valid MP4 or BcMedia. Wrote {} bytes to {} for inspection.",
                                 raw_replay_buffer.len(),
                                 raw_path.display()
@@ -1100,7 +1109,7 @@ async fn run_replay_or_download(
                         } else {
                             patch_e1_avcc_if_needed(&raw_path).context("Patch E1 avcC for playback")?;
                             patch_avc1_colour_if_needed(&raw_path).context("Patch avc1 colour for playback")?;
-                            println!("Wrote {} bytes (raw container) to {}", raw_replay_buffer.len(), raw_path.display());
+                            log::info!("Wrote {} bytes (raw container) to {}", raw_replay_buffer.len(), raw_path.display());
                         }
                     }
                 }
@@ -1108,7 +1117,7 @@ async fn run_replay_or_download(
         } else if frames > 0 {
             out.flush().await?;
             out.shutdown().await?;
-            println!("Wrote {} frames to {}", frames, p.display());
+            log::info!("Wrote {} frames to {}", frames, p.display());
         }
     } else {
         out.flush().await?;
