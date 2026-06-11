@@ -852,7 +852,12 @@ impl BcCamera {
             // Try MSG 5 first (replay file download as in app pcap: 123 + 5). Some cameras (e.g. E1)
             // return 400 for MSG 5; then try MSG 8 (same FileInfoList body). If MSG 8 returns 400, try desktop (0x17d).
             // Body: FileInfoList version="1.1" → FileInfo with uid, name, channelId, supportSub, streamType, startTime.
-            let mut msg_id = MSG_ID_REPLAY_START; // 5 = try first (pcap flow)
+            //let mut msg_id = MSG_ID_REPLAY_START; // 5 = try first (pcap flow)
+            // analyze-video-download
+            // use msg 8 first for Argus 2: The decoded data is broken then, but the dump file is MP4 with audio
+            // and can be played directly.
+            let mut msg_id = MSG_ID_REPLAY_START_ALT; // 8 = try first (pcap flow)
+
             let mut sub = connection
                 .subscribe(msg_id, start_msg_num)
                 .await?;

@@ -244,12 +244,18 @@ impl BcMediaAac {
             12 => Some(7350u32),
             _ => None,
         }?;
-        log::trace!("sample_frequency: {sample_frequency}");
+        // analyze-video-download
+        // trace to debug
+        log::debug!("sample_frequency: {sample_frequency}");
 
         let frames = (self.data[6] & 0b00000011) + 1;
-        log::trace!("frames: {frames}");
+        // analyze-video-download
+        // trace to debug
+        log::debug!("frames: {frames}");
         let samples = frames as u32 * 1024;
-        log::trace!("samples: {samples}");
+        // analyze-video-download
+        // trace to debug
+        log::debug!("samples: {samples}");
         const MICROSECONDS: u32 = 1000000;
         let duration = samples * MICROSECONDS / sample_frequency;
         Some(duration)

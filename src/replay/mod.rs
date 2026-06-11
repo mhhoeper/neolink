@@ -95,16 +95,20 @@ fn try_decode_bcmedia_nals(stream: &[u8]) -> Option<BcMediaDecoded> {
         match codec.decode(&mut buf) {
             Ok(Some(BcMedia::Iframe(BcMediaIframe { data, microseconds, .. }))) => {
                 if is_likely_valid_h264_nal(&data) {
+                    let data_len = data.len();
                     nals.push(data);
                     timestamps_us.push(microseconds);
                     bytes_advanced_without_nal = 0;
+                    log::debug!("Iframe at timestamp {}, size {}", microseconds as f32 / 1000.0, data_len);
                 }
             }
             Ok(Some(BcMedia::Pframe(BcMediaPframe { data, microseconds, .. }))) => {
                 if is_likely_valid_h264_nal(&data) {
+                    let data_len = data.len();
                     nals.push(data);
                     timestamps_us.push(microseconds);
                     bytes_advanced_without_nal = 0;
+                    log::debug!("Pframe at timestamp {}, size {}", microseconds as f32 / 1000.0, data_len);
                 }
             }
             Ok(Some(BcMedia::InfoV1(BcMediaInfoV1 { fps: f, .. })))
@@ -112,10 +116,19 @@ fn try_decode_bcmedia_nals(stream: &[u8]) -> Option<BcMediaDecoded> {
                 if f > 0 {
                     log::info!("Replay: BcMedia stream fps={} (from InfoV1/V2 header)", f);
                     fps = f;
+                    log::debug!("MediaInfo");
                 }
             }
             Ok(Some(BcMedia::Aac(BcMediaAac { data, .. }))) => {
                 aac_data.extend_from_slice(&data);
+                log::debug!("AAC, size {}", data.len());
+
+                // analyze-video-download
+                // AAC block size may be wrong, check header data
+                let mpeg_version = if (data[1] >> 3) & 1 == 0 {4} else {2};
+                let frame_len_hi = (data[3] & 0x3) as u16;
+                let frame_len = (frame_len_hi << 11) | ((data[4] as u16) << 3) | ((data[5] as u16) >> 5);
+                log::debug!("  AAC Header Data: MPEG-Version {}, Frame Len: {}", mpeg_version, frame_len);
             }
             Ok(Some(_)) => {}
             Err(_) => break,
@@ -1058,7 +1071,7 @@ async fn run_replay_or_download(
                         log::info!("Replay: BcMedia stream ({} bytes) saved to {}", stream_to_decode_len, bcmedia_dump_path.display());
                     }
                     // Decode BcMedia frames and mux to MP4
-                    const DECODE_MUX_TIMEOUT_SECS: u64 = 60;
+                    const DECODE_MUX_TIMEOUT_SECS: u64 = 120;
                     let stream_to_decode = stream_to_decode.to_vec();
                     let decoded_opt = match tokio::time::timeout(
                         tokio::time::Duration::from_secs(DECODE_MUX_TIMEOUT_SECS),
