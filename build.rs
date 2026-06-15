@@ -8,9 +8,10 @@ fn main() {
 
 fn build_ver() {
     let cargo_ver = env::var("CARGO_PKG_VERSION").unwrap();
-    let version = git_ver().unwrap_or(format!("{} (unknown commit)", cargo_ver));
+    let commit = git_cmd_commit().unwrap_or("unknown commit".to_string());
+    let version = git_ver().unwrap_or(cargo_ver);
 
-    println!("cargo:rustc-env=NEOLINK_VERSION={}", version);
+    println!("cargo:rustc-env=NEOLINK_VERSION={} ({})", version, commit);
     println!(
         "cargo:rustc-env=NEOLINK_PROFILE={}",
         env::var("PROFILE").unwrap()
@@ -34,6 +35,26 @@ fn git_cmd_ver() -> Option<String> {
     } else {
         None
     }
+}
+
+/// Attempts to retrieve the current Git commit hash (HEAD) of the repository.
+///
+/// # Returns
+/// * `Some(String)` - The full commit hash prefixed with "commit: " (e.g., "commit: a1b2c3d...").
+/// * `None` - If Git is not installed, the directory is not a Git repo, or an error occurs.
+fn git_cmd_commit() -> Option<String> {
+    let mut git_cmd = Command::new("git");
+    git_cmd.args(["rev-parse", "HEAD"]);
+
+    if let Ok(output) = git_cmd.output() {
+        if output.status.success() {
+            let commit_hash = String::from_utf8(output.stdout).ok()?;
+            let format_commit_hash = format!("commit: {}", commit_hash.trim());
+            return Some(format_commit_hash);
+        }
+    }
+
+    None
 }
 
 fn github_ver() -> Option<String> {
