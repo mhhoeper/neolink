@@ -1709,6 +1709,12 @@ fn print_file_list(files: &[FileInfo]) {
         let size_l = f.size_l.unwrap_or(0);
         let size_h = f.size_h.unwrap_or(0);
         let size_bytes = size_l as u64 + ((size_h as u64) << 32);
+        let start = f.start_time.as_ref().map(|t| {
+            format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", t.year, t.month, t.day, t.hour, t.minute, t.second)
+        }).unwrap_or_else(|| "—".to_string());
+        let end = f.end_time.as_ref().map(|t| {
+            format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", t.year, t.month, t.day, t.hour, t.minute, t.second)
+        }).unwrap_or_else(|| "—".to_string());        
         let stream = f.stream_type.as_deref().unwrap_or("—");
         let rec_type = f.record_type.as_deref().unwrap_or("");
         // Split recordType into trigger (md/sched/manual/pir/io) and AI detections
@@ -1729,6 +1735,6 @@ fn print_file_list(files: &[FileInfo]) {
         } else {
             format!("{} MB", size_bytes / (1024 * 1024))
         };
-        println!("  {}  {}  {}  {}{}", name, size_str, stream, rec_type, ai_str);
+        println!("  {}  {}  {}  {}  {}  {}{}", name, size_str, start, end, stream, rec_type, ai_str);
     }
 }
