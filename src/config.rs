@@ -227,7 +227,6 @@ pub(crate) struct CameraConfig {
 
     #[serde(default = "default_false", alias = "low_latency")]
     pub(crate) enable_low_latency: bool,
-
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate, Clone, PartialEq, Eq, Hash)]
