@@ -31,6 +31,10 @@ which itself was a fork of
 Docker is the preferred way to run Neolink. Binary releases are not currently
 provided.
 
+Scheduled Linux/Windows test builds and source archives can be produced with
+GitHub Actions. See [Nightly test builds](docs/nightly-builds.md) for setup,
+downloads, and runtime dependencies.
+
 ### Docker (recommended)
 
 Images are published to GHCR on every push to `master` and on tags:

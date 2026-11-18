@@ -1,0 +1,132 @@
+name: Nightly test builds
+
+on:
+  schedule:
+    # Daily at 01:17 UTC (02:17 CET / 03:17 CEST).
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Update the Linux container tag below together with this toolchain version.
+  RUST_VERSION: "1.100.0"
+  GSTREAMER_VERSION: "1.26.11"
+  CARGO_HOME: ${{ github.workspace }}/.cargo-cache
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  linux:
+    name: Linux x86_64 (debug)
+    runs-on: ubuntu-24.04
+    container: rust:1.100.0-bookworm
+    timeout-minutes: 120
+    steps:
+      - name: Checkout source and tags
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore Rust build cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            .cargo-cache/registry/
+            .cargo-cache/git/
+            target/
+          key: nightly-linux-bookworm-debug-rust-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Install GStreamer and build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev ca-certificates protobuf-compiler \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgstrtspserver-1.0-dev libglib2.0-dev \
+            gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
+
+      - name: Test, build and package
+        run: bash ci/build-linux.sh
+
+      - name: Upload Linux binary and checksum
+        uses: actions/upload-artifact@v7
+        with:
+          name: neolink-nightly-${{ github.run_id }}-${{ github.run_attempt }}-linux-x86_64-debug
+          path: |
+            dist/*-debug.tar.gz
+            dist/*-debug.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  windows:
+    name: Windows x86_64 (debug)
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - name: Checkout source and tags
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore Rust build cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            .cargo-cache/registry/
+            .cargo-cache/git/
+            target/
+          key: nightly-windows-2022-debug-rust-${{ env.RUST_VERSION }}-gst-${{ env.GSTREAMER_VERSION }}-${{ hashFiles('Cargo.lock') }}
+
+      # Keep setup and build in one PowerShell session so PATH and pkg-config
+      # settings also apply to Cargo, the unit tests and the packaged binary.
+      - name: Install dependencies, test, build and package
+        shell: pwsh
+        run: |
+          & ./ci/setup-windows.ps1
+          & ./ci/build-windows.ps1
+
+      - name: Upload Windows binary and checksum
+        uses: actions/upload-artifact@v7
+        with:
+          name: neolink-nightly-${{ github.run_id }}-${{ github.run_attempt }}-windows-x86_64-debug
+          path: |
+            dist/*-debug.zip
+            dist/*-debug.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  source:
+    name: Source ZIP
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the same source commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Package tracked source files
+        run: bash ci/package-source.sh
+
+      - name: Upload source archive and checksum
+        uses: actions/upload-artifact@v7
+        with:
+          name: neolink-nightly-${{ github.run_id }}-${{ github.run_attempt }}-source-debug
+          path: |
+            dist/*-debug.zip
+            dist/*-debug.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
