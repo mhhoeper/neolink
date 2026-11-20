@@ -10,8 +10,9 @@ prerelease from a single commit. It does not increment package versions.
 2. Open **Actions → Release Test Binaries → Run workflow** on GitHub.
 3. Select the branch or tag to test, then click **Run workflow**. The commit at
    dispatch time is fixed for every job, even if that branch advances during the build.
-4. Wait for the binaries and Docker image to build. The completed prerelease
-   appears under **Releases**, named `Test build <12-character commit>`.
+4. Wait for the binaries and Docker image to build in parallel after preparation.
+   Publication waits for all binary builds and the Docker job to succeed. The
+   completed prerelease appears under **Releases**, named `Test build <12-character commit>`.
 
 GitHub Actions must be enabled. The workflow uses the repository's automatic
 `GITHUB_TOKEN`: read access for builds, package write access for GHCR, and content
@@ -22,7 +23,13 @@ Actions plan must support that runner.
 ## Published files and image
 
 For a commit abbreviated as `0123456789ab`, the release tag is
-`test-0123456789ab`. The downloads are:
+`test-0123456789ab`.
+
+The temporary GitHub Actions artifacts are also named with the project, commit
+and target, for example `neolink-test-0123456789ab-x86_64-unknown-linux-gnu`.
+The release job downloads only artifacts with the matching commit prefix.
+
+The release downloads are:
 
 | Download | Contents |
 |---|---|
@@ -81,8 +88,9 @@ publish another test release.
 The release job first creates a draft, uploads all downloads, then publishes it
 as a prerelease. If upload or publication fails, rerun the failed jobs: an existing
 draft can be completed, provided its tag points to the same commit. Published
-release assets are not replaced. The Docker image is pushed before the final
-release job; it may already be available if that final job fails.
+release assets are not replaced. The Docker image is built and pushed in parallel
+with the binaries; it may already be available if a binary build or the final
+release job fails.
 
 ## Build the source download
 

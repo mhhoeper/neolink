@@ -116,13 +116,13 @@ jobs:
             --repository "$GITHUB_REPOSITORY" --target "$RELEASE_TARGET" --verify
       - uses: actions/upload-artifact@v7
         with:
-          name: test-binary-${{ matrix.target }}
+          name: neolink-test-${{ needs.prepare.outputs.short_commit }}-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
           retention-days: 7
 
   docker:
-    needs: [prepare, binaries]
+    needs: prepare
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -184,7 +184,7 @@ jobs:
           python-version: '3.11'
       - uses: actions/download-artifact@v8
         with:
-          pattern: test-binary-*
+          pattern: neolink-test-${{ needs.prepare.outputs.short_commit }}-*
           path: dist
           merge-multiple: true
       - name: Package source, provenance and checksums
