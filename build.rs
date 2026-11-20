@@ -11,13 +11,30 @@ fn build_ver() {
     // Cargo reruns build scripts when a tracked path is missing. Deliberately
     // never create this file: refresh the Git version on every build, even if
     // only the current commit changed and all source files stayed the same.
-    let always_rebuild = PathBuf::from(env::var_os("OUT_DIR").unwrap())
-        .join("neolink-version-always-rebuild");
+    let always_rebuild =
+        PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("neolink-version-always-rebuild");
     println!("cargo:rerun-if-changed={}", always_rebuild.display());
 
+    println!("cargo:rerun-if-env-changed=NEOLINK_BUILD_COMMIT");
+    let build_commit = env::var("NEOLINK_BUILD_COMMIT")
+        .ok()
+        .filter(|commit| !commit.is_empty());
     let cargo_ver = env::var("CARGO_PKG_VERSION").unwrap();
-    let commit = git_cmd_commit().unwrap_or("unknown commit".to_string());
-    let version = git_ver().unwrap_or(cargo_ver);
+    let (version, commit) = if let Some(commit) = build_commit {
+        assert!(
+            commit.len() == 40 && commit.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "NEOLINK_BUILD_COMMIT must be a full Git commit SHA"
+        );
+        (
+            format!("test-{}", &commit[..12]),
+            format!("commit: {}", commit),
+        )
+    } else {
+        (
+            git_ver().unwrap_or(cargo_ver),
+            git_cmd_commit().unwrap_or("unknown commit".to_string()),
+        )
+    };
 
     println!("cargo:rustc-env=NEOLINK_VERSION={} ({})", version, commit);
     println!(
@@ -88,18 +105,21 @@ fn platform_cfg() {
     let gstreamer_dir = env::var_os("GSTREAMER_1_0_ROOT_MACOSX")
         .and_then(|x| x.into_string().ok())
         .unwrap_or_else(|| r"/Library/Frameworks/GStreamer.framework/Versions/1.0".to_string());
-    let openssl_dir = env::var_os("OPENSSL_1_1_ROOT_MACOSX")
-        .and_then(|x| x.into_string().ok())
-        .unwrap_or_else(|| r"/usr/local/opt/openssl@1.1".to_string());
+    println!("cargo:rerun-if-env-changed=GSTREAMER_1_0_ROOT_MACOSX");
+    println!("cargo:rerun-if-env-changed=OPENSSL_DIR");
+    println!("cargo:rerun-if-env-changed=OPENSSL_1_1_ROOT_MACOSX");
+    println!(r"cargo:rustc-link-search=native={}/lib", gstreamer_dir);
+    println!(r"cargo:rustc-link-arg=-Wl,-rpath,{}/lib", gstreamer_dir);
 
-    println!(
-        r"cargo:rustc-link-search=native={}/lib;{}/lib",
-        gstreamer_dir, openssl_dir
-    );
-    println!(
-        r"cargo:rustc-link-arg=-Wl,-rpath,{}/lib;{}/lib/",
-        gstreamer_dir, openssl_dir
-    );
+    // Homebrew uses OpenSSL 3 now. Retain the legacy override, but do not add
+    // a nonexistent OpenSSL 1.1 path or join separate linker paths with ';'.
+    if let Some(openssl_dir) =
+        env::var_os("OPENSSL_DIR").or_else(|| env::var_os("OPENSSL_1_1_ROOT_MACOSX"))
+    {
+        let lib_dir = PathBuf::from(openssl_dir).join("lib");
+        println!("cargo:rustc-link-search=native={}", lib_dir.display());
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir.display());
+    }
 }
 
 #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]

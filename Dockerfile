@@ -7,6 +7,8 @@
 
 FROM rust:1-slim AS build
 ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG NEOLINK_BUILD_COMMIT=""
 
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /usr/local/src/neolink
@@ -24,7 +26,7 @@ COPY . /usr/local/src/neolink
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
     echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
-RUN --mount=type=cache,target=/usr/local/src/neolink/target \
+RUN --mount=type=cache,id=neolink-target-${TARGETARCH},target=/usr/local/src/neolink/target \
   --mount=type=cache,target=/usr/local/cargo/git/db \
   --mount=type=cache,target=/usr/local/cargo/registry/ \
   --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -47,15 +49,20 @@ RUN --mount=type=cache,target=/usr/local/src/neolink/target \
           libgtk2.0-dev \
           protobuf-compiler \
           libglib2.0-dev && \
-    cargo build --release && \
+    NEOLINK_BUILD_COMMIT="$NEOLINK_BUILD_COMMIT" cargo build --release --locked && \
     cp target/release/neolink /usr/local/bin/neolink; \
   fi
+
+RUN mkdir -p /usr/local/share/neolink && \
+    printf 'Neolink build\nSource commit: %s\n' "${NEOLINK_BUILD_COMMIT:-unspecified}" \
+      > /usr/local/share/neolink/BUILD-INFO.txt
 
 # Create the release container. Match the base OS used to build
 FROM debian:stable-slim
 ARG REPO
 ARG VERSION
 ARG OWNER
+ARG NEOLINK_BUILD_COMMIT=""
 ARG REVISION
 ARG SOURCE_URL
 ARG DESCRIPTION="Reolink camera to RTSP translator"
@@ -90,12 +97,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         gstreamer1.0-libav
 
 COPY --from=build /usr/local/bin/neolink /usr/local/bin/neolink
+COPY --from=build /usr/local/share/neolink /usr/share/neolink
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY LICENSE /usr/share/doc/neolink/LICENSE
 
-RUN gst-inspect-1.0; \
+RUN gst-inspect-1.0 && \
     chmod +x "/usr/local/bin/neolink" && \
-    "/usr/local/bin/neolink" --version
+    "/usr/local/bin/neolink" --version && \
+    (test -z "$NEOLINK_BUILD_COMMIT" || \
+      "/usr/local/bin/neolink" --version | grep -F "$NEOLINK_BUILD_COMMIT")
 
 RUN groupadd -r -g 10001 neolink && useradd -r -u 10001 -g neolink -d /home/neolink -m neolink && \
     mkdir -p /home/neolink/.config && chown neolink:neolink /home/neolink/.config

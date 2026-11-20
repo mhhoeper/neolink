@@ -33,3 +33,5 @@ crates/fcm-push-listener
 .planning/
 docs/plans/
 tmp/
+/dist/
+__pycache__/

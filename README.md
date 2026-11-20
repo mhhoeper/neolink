@@ -28,8 +28,8 @@ which itself was a fork of
 
 ## Installation
 
-Docker is the preferred way to run Neolink. Binary releases are not currently
-provided.
+Docker is the preferred way to run Neolink. Manually triggered test prereleases
+provide binaries and matching source archives; see [Test releases](docs/test_releases.md).
 
 ### Docker (recommended)
 
